@@ -44,7 +44,6 @@ export function USDZModel({ url, name = "scene.usdz" }: { url: string; name?: st
       try {
         // Dynamic import keeps the loader out of the initial bundle.
         const mod: { USDZLoader: new () => { parse: (buf: ArrayBuffer) => THREE.Group } } = await import(
-          // @ts-expect-error - examples module ships without bundled types
           "three/examples/jsm/loaders/USDZLoader.js"
         )
         const res = await fetch(url)
