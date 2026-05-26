@@ -2,7 +2,16 @@
 
 import { create } from "zustand"
 
-export type SceneType = "preset" | "code" | "glb"
+export type SceneType =
+  | "preset"
+  | "code"
+  | "glb"
+  | "threejs"
+  | "shader"
+  | "webgl2"
+  | "usd"
+  | "spline"
+  | "html"
 
 export type PresetId =
   | "shader-plasma"
@@ -12,13 +21,32 @@ export type PresetId =
   | "particles"
   | "displaced-plane"
 
+export type ShaderLang = "glsl" | "wgsl"
+export type HtmlMode = "iframe" | "texture"
+
 export interface SceneWindow {
   id: string
   title: string
   type: SceneType
   presetId?: PresetId
+  /** R3F JSX snippet for type=code */
   code?: string
+  /** raw three.js module body for type=threejs */
+  threeCode?: string
+  /** raw WebGL2 module body for type=webgl2 */
+  glCode?: string
+  /** GLSL/WGSL fragment shader for type=shader */
+  shaderCode?: string
+  shaderLang?: ShaderLang
+  /** GLB or USD model url (string blob/data url for type=glb / type=usd) */
   glbUrl?: string
+  usdUrl?: string
+  usdName?: string
+  /** Spline scene url for type=spline */
+  splineUrl?: string
+  /** HTML/CSS/JS bundle for type=html */
+  htmlCode?: string
+  htmlMode?: HtmlMode
   // layout (window position + size in workspace)
   x: number
   y: number
