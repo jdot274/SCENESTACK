@@ -5,7 +5,6 @@ import * as THREE from "three"
 import * as React from "react"
 import * as R3F from "@react-three/fiber"
 import * as Drei from "@react-three/drei"
-// @ts-expect-error - no types needed
 import * as Babel from "@babel/standalone"
 
 interface Props {

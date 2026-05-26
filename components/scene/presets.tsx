@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef } from "react"
+import type * as React from "react"
 import { useFrame } from "@react-three/fiber"
 import * as THREE from "three"
 
@@ -224,7 +225,7 @@ export function DisplacedPlane({ color, speed }: PresetProps) {
 
 export const PRESETS: Record<
   string,
-  { label: string; component: (p: PresetProps) => JSX.Element; description: string }
+  { label: string; component: (p: PresetProps) => React.ReactElement; description: string }
 > = {
   "shader-plasma": {
     label: "Plasma Shader",
