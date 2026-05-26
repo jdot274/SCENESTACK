@@ -1,6 +1,6 @@
 "use client"
 
-import { useScenes, type SceneWindow } from "@/lib/store"
+import { useScenes, type SceneWindow, type SceneObject, type ObjectKind } from "@/lib/store"
 import { Slider } from "@/components/ui/slider"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -8,7 +8,18 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Settings2, Code2, Box } from "lucide-react"
+import {
+  Settings2,
+  Code2,
+  Box,
+  Move3d,
+  Plus,
+  Trash2,
+  Copy,
+  Eye,
+  EyeOff,
+  Boxes,
+} from "lucide-react"
 import { PRESETS } from "@/components/scene/presets"
 import { useEffect, useState } from "react"
 
@@ -45,20 +56,34 @@ export function PropertiesPanel() {
         </span>
       </div>
       <Tabs defaultValue="props" className="flex-1 flex flex-col overflow-hidden">
-        <TabsList className="m-2 grid grid-cols-3">
-          <TabsTrigger value="props" className="text-xs">
-            <Box className="size-3 mr-1" /> Props
+        <TabsList className="m-2 grid grid-cols-5">
+          <TabsTrigger value="props" className="text-[10px] px-1">
+            <Box className="size-3" />
           </TabsTrigger>
-          <TabsTrigger value="layer" className="text-xs">
-            <Settings2 className="size-3 mr-1" /> Layer
+          <TabsTrigger value="transform" className="text-[10px] px-1">
+            <Move3d className="size-3" />
           </TabsTrigger>
-          <TabsTrigger value="source" className="text-xs">
-            <Code2 className="size-3 mr-1" /> Source
+          <TabsTrigger value="objects" className="text-[10px] px-1">
+            <Boxes className="size-3" />
+          </TabsTrigger>
+          <TabsTrigger value="layer" className="text-[10px] px-1">
+            <Settings2 className="size-3" />
+          </TabsTrigger>
+          <TabsTrigger value="source" className="text-[10px] px-1">
+            <Code2 className="size-3" />
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="props" className="flex-1 overflow-y-auto px-3 pb-4 space-y-4 mt-0">
           <PropsTab scene={scene} update={update} />
+        </TabsContent>
+
+        <TabsContent value="transform" className="flex-1 overflow-y-auto px-3 pb-4 space-y-4 mt-0">
+          <TransformTab scene={scene} update={update} />
+        </TabsContent>
+
+        <TabsContent value="objects" className="flex-1 overflow-y-auto px-3 pb-4 space-y-3 mt-0">
+          <ObjectsTab scene={scene} />
         </TabsContent>
 
         <TabsContent value="layer" className="flex-1 overflow-y-auto px-3 pb-4 space-y-4 mt-0">
@@ -183,6 +208,314 @@ function PropsTab({
           onValueChange={([v]) => update(scene.id, { directional: v })}
         />
       </Row>
+    </>
+  )
+}
+
+function Vec3Input({
+  label,
+  value,
+  step = 0.1,
+  onChange,
+}: {
+  label: string
+  value: [number, number, number]
+  step?: number
+  onChange: (v: [number, number, number]) => void
+}) {
+  const set = (i: 0 | 1 | 2, v: number) => {
+    const next: [number, number, number] = [...value]
+    next[i] = v
+    onChange(next)
+  }
+  return (
+    <Row label={label}>
+      <div className="grid grid-cols-3 gap-1.5">
+        {(["X", "Y", "Z"] as const).map((axis, i) => (
+          <div key={axis} className="relative">
+            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 font-mono text-[9px] text-muted-foreground">
+              {axis}
+            </span>
+            <Input
+              type="number"
+              step={step}
+              value={Number(value[i].toFixed(3))}
+              onChange={(e) => set(i as 0 | 1 | 2, Number(e.target.value))}
+              className="h-8 pl-5 font-mono text-[11px]"
+            />
+          </div>
+        ))}
+      </div>
+    </Row>
+  )
+}
+
+function TransformTab({
+  scene,
+  update,
+}: {
+  scene: SceneWindow
+  update: (id: string, p: Partial<SceneWindow>) => void
+}) {
+  const rotDeg: [number, number, number] = [
+    (scene.sceneRotation[0] * 180) / Math.PI,
+    (scene.sceneRotation[1] * 180) / Math.PI,
+    (scene.sceneRotation[2] * 180) / Math.PI,
+  ]
+  return (
+    <>
+      <p className="text-[10px] leading-relaxed text-muted-foreground">
+        Scene-level transform applied to the entire scene contents (primary content + added objects). Useful for
+        re-orienting an imported model or composing multiple layers in shared world space.
+      </p>
+      <Vec3Input
+        label="Position"
+        value={scene.scenePosition}
+        step={0.1}
+        onChange={(v) => update(scene.id, { scenePosition: v })}
+      />
+      <Vec3Input
+        label="Rotation (degrees)"
+        value={rotDeg}
+        step={1}
+        onChange={(v) =>
+          update(scene.id, {
+            sceneRotation: [(v[0] * Math.PI) / 180, (v[1] * Math.PI) / 180, (v[2] * Math.PI) / 180],
+          })
+        }
+      />
+      <Row label={`Scale: ${scene.sceneScale.toFixed(2)}×`}>
+        <Slider
+          value={[scene.sceneScale]}
+          min={0.05}
+          max={5}
+          step={0.05}
+          onValueChange={([v]) => update(scene.id, { sceneScale: v })}
+        />
+      </Row>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-8 w-full text-xs bg-transparent"
+        onClick={() =>
+          update(scene.id, {
+            scenePosition: [0, 0, 0],
+            sceneRotation: [0, 0, 0],
+            sceneScale: 1,
+          })
+        }
+      >
+        Reset Transform
+      </Button>
+    </>
+  )
+}
+
+const OBJECT_KINDS: { kind: ObjectKind; label: string }[] = [
+  { kind: "box", label: "Box" },
+  { kind: "sphere", label: "Sphere" },
+  { kind: "torus", label: "Torus" },
+  { kind: "cone", label: "Cone" },
+  { kind: "cylinder", label: "Cylinder" },
+  { kind: "plane", label: "Plane" },
+  { kind: "text", label: "Text" },
+  { kind: "pointLight", label: "Point Light" },
+  { kind: "spotLight", label: "Spot Light" },
+]
+
+function ObjectsTab({ scene }: { scene: SceneWindow }) {
+  const addObject = useScenes((s) => s.addObject)
+  const updateObject = useScenes((s) => s.updateObject)
+  const removeObject = useScenes((s) => s.removeObject)
+  const duplicateObject = useScenes((s) => s.duplicateObject)
+  const [selected, setSelected] = useState<string | null>(scene.objects[0]?.id ?? null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  useEffect(() => {
+    if (selected && !scene.objects.find((o) => o.id === selected)) {
+      setSelected(scene.objects[0]?.id ?? null)
+    }
+  }, [scene.objects, selected])
+
+  const obj = scene.objects.find((o) => o.id === selected) ?? null
+
+  return (
+    <>
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            In Scene ({scene.objects.length})
+          </Label>
+          <Select
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
+            value=""
+            onValueChange={(v) => {
+              const id = addObject(scene.id, v as ObjectKind)
+              setSelected(id)
+              setPickerOpen(false)
+            }}
+          >
+            <SelectTrigger className="h-7 w-auto gap-1 px-2 text-[10px]">
+              <Plus className="size-3" />
+              Add
+            </SelectTrigger>
+            <SelectContent>
+              {OBJECT_KINDS.map((k) => (
+                <SelectItem key={k.kind} value={k.kind} className="text-xs">
+                  {k.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="overflow-hidden rounded border border-border">
+          {scene.objects.length === 0 && (
+            <div className="px-2 py-3 text-center text-[10px] text-muted-foreground">
+              No objects yet. Click <span className="text-foreground">Add</span> to insert primitives, lights, or text.
+            </div>
+          )}
+          {scene.objects.map((o) => (
+            <div
+              key={o.id}
+              className={`flex items-center gap-1 border-b border-border px-2 py-1.5 last:border-b-0 ${
+                selected === o.id ? "bg-accent/40" : "hover:bg-accent/20"
+              }`}
+            >
+              <button
+                onClick={() => updateObject(scene.id, o.id, { visible: !o.visible })}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label={o.visible ? "Hide" : "Show"}
+              >
+                {o.visible ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
+              </button>
+              <button
+                onClick={() => setSelected(o.id)}
+                className="flex-1 truncate text-left font-mono text-[11px]"
+              >
+                {o.name}
+              </button>
+              <span className="font-mono text-[9px] uppercase text-muted-foreground">{o.kind}</span>
+              <button
+                onClick={() => duplicateObject(scene.id, o.id)}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Duplicate"
+              >
+                <Copy className="size-3" />
+              </button>
+              <button
+                onClick={() => removeObject(scene.id, o.id)}
+                className="text-muted-foreground hover:text-destructive"
+                aria-label="Delete"
+              >
+                <Trash2 className="size-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {obj && (
+        <div className="space-y-3 border-t border-border pt-3">
+          <Label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            {obj.kind} · Properties
+          </Label>
+          <Row label="Name">
+            <Input
+              value={obj.name}
+              onChange={(e) => updateObject(scene.id, obj.id, { name: e.target.value })}
+              className="h-8 text-xs"
+            />
+          </Row>
+          <Vec3Input
+            label="Position"
+            value={obj.position}
+            onChange={(v) => updateObject(scene.id, obj.id, { position: v })}
+          />
+          {obj.kind !== "pointLight" && (
+            <Vec3Input
+              label="Rotation (rad)"
+              value={obj.rotation}
+              step={0.05}
+              onChange={(v) => updateObject(scene.id, obj.id, { rotation: v })}
+            />
+          )}
+          {obj.kind !== "pointLight" && obj.kind !== "spotLight" && (
+            <Vec3Input
+              label="Scale"
+              value={obj.scale}
+              step={0.05}
+              onChange={(v) => updateObject(scene.id, obj.id, { scale: v })}
+            />
+          )}
+          <Row label="Color">
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={obj.color}
+                onChange={(e) => updateObject(scene.id, obj.id, { color: e.target.value })}
+                className="size-8 cursor-pointer rounded border border-border bg-transparent"
+              />
+              <Input
+                value={obj.color}
+                onChange={(e) => updateObject(scene.id, obj.id, { color: e.target.value })}
+                className="h-8 font-mono text-xs"
+              />
+            </div>
+          </Row>
+          {obj.kind === "text" && (
+            <Row label="Text">
+              <Input
+                value={obj.text ?? ""}
+                onChange={(e) => updateObject(scene.id, obj.id, { text: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </Row>
+          )}
+          {(obj.kind === "pointLight" || obj.kind === "spotLight") && (
+            <Row label={`Intensity: ${(obj.intensity ?? 1).toFixed(2)}`}>
+              <Slider
+                value={[obj.intensity ?? 1]}
+                min={0}
+                max={10}
+                step={0.1}
+                onValueChange={([v]) => updateObject(scene.id, obj.id, { intensity: v })}
+              />
+            </Row>
+          )}
+          {obj.kind !== "pointLight" && obj.kind !== "spotLight" && obj.kind !== "text" && (
+            <>
+              <Row label={`Metalness: ${(obj.metalness ?? 0.1).toFixed(2)}`}>
+                <Slider
+                  value={[obj.metalness ?? 0.1]}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onValueChange={([v]) => updateObject(scene.id, obj.id, { metalness: v })}
+                />
+              </Row>
+              <Row label={`Roughness: ${(obj.roughness ?? 0.5).toFixed(2)}`}>
+                <Slider
+                  value={[obj.roughness ?? 0.5]}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onValueChange={([v]) => updateObject(scene.id, obj.id, { roughness: v })}
+                />
+              </Row>
+              <label className="flex cursor-pointer items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={obj.wireframe ?? false}
+                  onChange={(e) => updateObject(scene.id, obj.id, { wireframe: e.target.checked })}
+                  className="size-3.5 cursor-pointer"
+                />
+                Wireframe
+              </label>
+            </>
+          )}
+        </div>
+      )}
     </>
   )
 }
