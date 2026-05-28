@@ -6,10 +6,9 @@ import dynamic from "next/dynamic"
  * Spline scene embed. Accepts a public Spline scene URL (e.g. ending in .splinecode).
  * The runtime is loaded dynamically to keep it out of the initial bundle.
  */
-const Spline = dynamic(
-  () => import("@splinetool/react-spline").then((m) => m.default),
-  { ssr: false, loading: () => <div className="animate-pulse h-full w-full bg-muted/20" /> }
-)
+const Spline = dynamic(() => import("@splinetool/react-spline").then((m) => m.default), {
+  ssr: false,
+})
 
 export function SplineEmbed({ url }: { url: string }) {
   if (!url) {
