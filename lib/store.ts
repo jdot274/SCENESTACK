@@ -2,16 +2,7 @@
 
 import { create } from "zustand"
 
-export type SceneType =
-  | "preset"
-  | "code"
-  | "glb"
-  | "threejs"
-  | "shader"
-  | "webgl2"
-  | "usd"
-  | "spline"
-  | "html"
+export type SceneType = "preset" | "code" | "glb"
 
 export type PresetId =
   | "shader-plasma"
@@ -21,53 +12,14 @@ export type PresetId =
   | "particles"
   | "displaced-plane"
 
-export type ShaderLang = "glsl" | "wgsl"
-export type HtmlMode = "iframe" | "texture"
-
-export type ObjectKind =
-  | "box"
-  | "sphere"
-  | "torus"
-  | "cone"
-  | "plane"
-  | "cylinder"
-  | "text"
-  | "pointLight"
-  | "spotLight"
-
-export interface SceneObject {
-  id: string
-  kind: ObjectKind
-  name: string
-  position: [number, number, number]
-  rotation: [number, number, number]
-  scale: [number, number, number]
-  color: string
-  intensity?: number
-  text?: string
-  metalness?: number
-  roughness?: number
-  wireframe?: boolean
-  visible: boolean
-}
-
 export interface SceneWindow {
   id: string
   title: string
   type: SceneType
   presetId?: PresetId
   code?: string
-  threeCode?: string
-  glCode?: string
-  shaderCode?: string
-  shaderLang?: ShaderLang
   glbUrl?: string
-  usdUrl?: string
-  usdName?: string
-  splineUrl?: string
-  htmlCode?: string
-  htmlMode?: HtmlMode
-  // layout
+  // layout (window position + size in workspace)
   x: number
   y: number
   width: number
@@ -85,12 +37,6 @@ export interface SceneWindow {
   meshColor: string
   ambient: number
   directional: number
-  // scene-level transform
-  sceneRotation: [number, number, number]
-  scenePosition: [number, number, number]
-  sceneScale: number
-  // user-added primitives layered into the scene
-  objects: SceneObject[]
 }
 
 interface State {
@@ -104,10 +50,6 @@ interface State {
   bringToFront: (id: string) => void
   reorder: (id: string, direction: "up" | "down") => void
   duplicate: (id: string) => void
-  addObject: (sceneId: string, kind: ObjectKind) => string
-  updateObject: (sceneId: string, objectId: string, patch: Partial<SceneObject>) => void
-  removeObject: (sceneId: string, objectId: string) => void
-  duplicateObject: (sceneId: string, objectId: string) => void
 }
 
 let counter = 0
@@ -129,40 +71,6 @@ const defaults: Omit<SceneWindow, "id" | "type" | "title"> = {
   meshColor: "#7dd3fc",
   ambient: 0.4,
   directional: 1.2,
-  sceneRotation: [0, 0, 0],
-  scenePosition: [0, 0, 0],
-  sceneScale: 1,
-  objects: [],
-}
-
-const objectDefaults: Record<ObjectKind, Partial<SceneObject>> = {
-  box: { color: "#f97316", scale: [1, 1, 1] },
-  sphere: { color: "#a855f7", scale: [0.8, 0.8, 0.8] },
-  torus: { color: "#22d3ee", scale: [0.7, 0.7, 0.7] },
-  cone: { color: "#facc15", scale: [0.8, 1, 0.8] },
-  plane: { color: "#94a3b8", scale: [2, 2, 1], rotation: [-Math.PI / 2, 0, 0] },
-  cylinder: { color: "#10b981", scale: [0.6, 1, 0.6] },
-  text: { color: "#ffffff", text: "Hello", scale: [1, 1, 1] },
-  pointLight: { color: "#ffffff", intensity: 1 },
-  spotLight: { color: "#ffffff", intensity: 2 },
-}
-
-function makeObject(kind: ObjectKind): SceneObject {
-  const id = `o_${Date.now().toString(36)}_${(counter++).toString(36)}`
-  const base: SceneObject = {
-    id,
-    kind,
-    name: kind.charAt(0).toUpperCase() + kind.slice(1),
-    position: [0, 0, 0],
-    rotation: [0, 0, 0],
-    scale: [1, 1, 1],
-    color: "#ffffff",
-    metalness: 0.1,
-    roughness: 0.5,
-    wireframe: false,
-    visible: true,
-  }
-  return { ...base, ...objectDefaults[kind] } as SceneObject
 }
 
 export const useScenes = create<State>((set, get) => ({
@@ -181,7 +89,6 @@ export const useScenes = create<State>((set, get) => ({
       ...s,
       id,
       zIndex: z,
-      objects: s.objects ?? [],
     } as SceneWindow
     set((st) => ({ scenes: [...st.scenes, scene], selectedId: id, zCounter: z }))
     return id
@@ -235,44 +142,4 @@ export const useScenes = create<State>((set, get) => ({
       selectedId: newId,
     }))
   },
-  addObject: (sceneId, kind) => {
-    const obj = makeObject(kind)
-    set((st) => ({
-      scenes: st.scenes.map((s) =>
-        s.id === sceneId ? { ...s, objects: [...(s.objects ?? []), obj] } : s,
-      ),
-    }))
-    return obj.id
-  },
-  updateObject: (sceneId, objectId, patch) =>
-    set((st) => ({
-      scenes: st.scenes.map((s) =>
-        s.id === sceneId
-          ? { ...s, objects: (s.objects ?? []).map((o) => (o.id === objectId ? { ...o, ...patch } : o)) }
-          : s,
-      ),
-    })),
-  removeObject: (sceneId, objectId) =>
-    set((st) => ({
-      scenes: st.scenes.map((s) =>
-        s.id === sceneId ? { ...s, objects: (s.objects ?? []).filter((o) => o.id !== objectId) } : s,
-      ),
-    })),
-  duplicateObject: (sceneId, objectId) =>
-    set((st) => ({
-      scenes: st.scenes.map((s) => {
-        if (s.id !== sceneId) return s
-        const list = s.objects ?? []
-        const src = list.find((o) => o.id === objectId)
-        if (!src) return s
-        const newId = `o_${Date.now().toString(36)}_${(counter++).toString(36)}`
-        const copy: SceneObject = {
-          ...src,
-          id: newId,
-          name: src.name + " copy",
-          position: [src.position[0] + 0.3, src.position[1], src.position[2] + 0.3],
-        }
-        return { ...s, objects: [...list, copy] }
-      }),
-    })),
 }))

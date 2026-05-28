@@ -1,30 +1,33 @@
 "use client"
 
-import { Suspense, useState } from "react"
-import { Canvas } from "@react-three/fiber"
-import { OrbitControls, Environment } from "@react-three/drei"
+import { Suspense, useRef, useState } from "react"
+import { Canvas, useFrame } from "@react-three/fiber"
+import { OrbitControls, useGLTF, Environment } from "@react-three/drei"
+import * as THREE from "three"
 import type { SceneWindow } from "@/lib/store"
 import { PRESETS } from "./presets"
 import { CodeRunner } from "./code-runner"
-import { ShaderRunner } from "./shader-runner"
-import { ThreeJSRunner } from "./threejs-runner"
-import { WebGL2Runner } from "./webgl2-runner"
-import { GLBModel, USDZModel, ModelStage } from "./model-loaders"
-import { HtmlSandbox, HtmlTexturePanel } from "./html-sandbox"
-import { SplineEmbed } from "./spline-embed"
 
-type Source = "canvas" | "dom"
-
-/** Sources that manage their own rendering surface (DOM/iframe/own canvas). */
-function sourceFor(scene: SceneWindow): Source {
-  if (scene.type === "threejs") return "dom"
-  if (scene.type === "webgl2") return "dom"
-  if (scene.type === "spline") return "dom"
-  if (scene.type === "html" && (scene.htmlMode ?? "iframe") === "iframe") return "dom"
-  return "canvas"
+function GLBModel({ url, speed }: { url: string; speed: number }) {
+  const { scene } = useGLTF(url)
+  const ref = useRef<THREE.Group>(null)
+  useFrame((_, dt) => {
+    if (ref.current) ref.current.rotation.y += dt * speed
+  })
+  // Center & scale-fit
+  const box = new THREE.Box3().setFromObject(scene)
+  const size = box.getSize(new THREE.Vector3())
+  const center = box.getCenter(new THREE.Vector3())
+  const max = Math.max(size.x, size.y, size.z) || 1
+  const scale = 2 / max
+  return (
+    <group ref={ref} scale={scale} position={[-center.x * scale, -center.y * scale, -center.z * scale]}>
+      <primitive object={scene} />
+    </group>
+  )
 }
 
-function CanvasContents({
+function SceneContents({
   scene,
   onError,
 }: {
@@ -36,54 +39,23 @@ function CanvasContents({
     if (!preset) return null
     return preset.component({ color: scene.meshColor, speed: scene.rotationSpeed })
   }
-  if (scene.type === "code") {
-    return (
-      <CodeRunner code={scene.code ?? ""} color={scene.meshColor} speed={scene.rotationSpeed} onError={onError} />
-    )
-  }
-  if (scene.type === "shader") {
-    return <ShaderRunner fragment={scene.shaderCode} lang={scene.shaderLang ?? "glsl"} />
+  if (scene.type === "code" && scene.code) {
+    return <CodeRunner code={scene.code} color={scene.meshColor} speed={scene.rotationSpeed} onError={onError} />
   }
   if (scene.type === "glb" && scene.glbUrl) {
     return (
-      <ModelStage>
-        <GLBModel url={scene.glbUrl} />
-      </ModelStage>
+      <Suspense fallback={null}>
+        <GLBModel url={scene.glbUrl} speed={scene.rotationSpeed} />
+      </Suspense>
     )
-  }
-  if (scene.type === "usd" && scene.usdUrl) {
-    return (
-      <ModelStage>
-        <USDZModel url={scene.usdUrl} name={scene.usdName ?? "scene.usdz"} />
-      </ModelStage>
-    )
-  }
-  if (scene.type === "html" && (scene.htmlMode ?? "iframe") === "texture") {
-    return <HtmlTexturePanel code={scene.htmlCode} />
   }
   return null
 }
 
 export function SceneRenderer({ scene }: { scene: SceneWindow }) {
   const [error, setError] = useState<string | null>(null)
-  const src = sourceFor(scene)
-
-  if (src === "dom") {
-    return (
-      <div className="relative h-full w-full" style={{ background: scene.background }}>
-        {scene.type === "threejs" && <ThreeJSRunner code={scene.threeCode} background={scene.background} />}
-        {scene.type === "webgl2" && <WebGL2Runner code={scene.glCode} />}
-        {scene.type === "spline" && <SplineEmbed url={scene.splineUrl ?? ""} />}
-        {scene.type === "html" && (scene.htmlMode ?? "iframe") === "iframe" && <HtmlSandbox code={scene.htmlCode} />}
-      </div>
-    )
-  }
-
-  const useEnvironment = scene.type === "glb" || scene.type === "usd"
-  const useOrbit = scene.type !== "shader" && scene.type !== "glb" && scene.type !== "usd"
-
   return (
-    <div className="relative h-full w-full">
+    <div className="relative w-full h-full">
       <Canvas
         camera={{ position: [0, 0, 4], fov: scene.cameraFov }}
         gl={{ antialias: true, alpha: true, preserveDrawingBuffer: false }}
@@ -94,13 +66,13 @@ export function SceneRenderer({ scene }: { scene: SceneWindow }) {
         <directionalLight position={[5, 5, 5]} intensity={scene.directional} />
         <directionalLight position={[-5, -2, -5]} intensity={scene.directional * 0.4} color="#a78bfa" />
         <Suspense fallback={null}>
-          <CanvasContents scene={scene} onError={setError} />
-          {useEnvironment && <Environment preset="studio" />}
+          <SceneContents scene={scene} onError={setError} />
+          {scene.type === "glb" && <Environment preset="studio" />}
         </Suspense>
-        {useOrbit && <OrbitControls enableDamping makeDefault />}
+        <OrbitControls enableDamping makeDefault />
       </Canvas>
       {error && (
-        <div className="pointer-events-none absolute bottom-2 left-2 right-2 max-h-20 overflow-auto rounded bg-destructive/90 px-2 py-1 font-mono text-[10px] text-destructive-foreground">
+        <div className="absolute bottom-2 left-2 right-2 text-[10px] font-mono bg-destructive/90 text-destructive-foreground px-2 py-1 rounded max-h-20 overflow-auto">
           {error}
         </div>
       )}
